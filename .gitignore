@@ -1,0 +1,30 @@
+﻿# Binarios compilados
+*.exe
+*.dll
+*.so
+*.dylib
+bin/
+
+# Binario de teste do "go test -c"
+*.test
+
+# Saida de cobertura
+*.out
+
+# Dependencias vendorizadas
+vendor/
+
+# Workspace local do Go
+go.work
+go.work.sum
+
+# Variaveis de ambiente REAIS (o .env.example e versionado)
+.env
+.env.local
+
+# IDE
+.idea/
+
+# Lixo do SO
+Thumbs.db
+.DS_Store
