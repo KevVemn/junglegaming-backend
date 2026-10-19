@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -152,4 +153,93 @@ func (m Money) String() string {
 	}
 
 	return fmt.Sprintf("%s%d.%0*d", sign, units, Scale, frac)
+}
+
+func (m Money) assertSameCurrency(other Money) error {
+	if !m.IsInitialized() || !other.IsInitialized() {
+		return ErrUninitializedMoney
+	}
+	if m.currency != other.currency {
+		return ErrCurrencyMismatch
+	}
+	return nil
+}
+
+func (m Money) Add(other Money) (Money, error) {
+	if err := m.assertSameCurrency(other); err != nil {
+		return Money{}, err
+	}
+
+	sum := m.minorUnits + other.minorUnits
+	if (m.minorUnits > 0 && other.minorUnits > 0 && sum < 0) || (m.minorUnits < 0 && other.minorUnits < 0 && sum > 0) {
+		return Money{}, ErrMoneyOverflow
+	}
+
+	return Money{minorUnits: sum, currency: m.currency}, nil
+}
+
+func (m Money) Sub(other Money) (Money, error) {
+	if err := m.assertSameCurrency(other); err != nil {
+		return Money{}, err
+	}
+
+	diff := m.minorUnits - other.minorUnits
+	if (m.minorUnits >= 0 && other.minorUnits < 0 && diff < 0) || (m.minorUnits < 0 && other.minorUnits > 0 && diff > 0) {
+		return Money{}, ErrMoneyOverflow
+	}
+
+	return Money{minorUnits: diff, currency: m.currency}, nil
+}
+
+func (m Money) Neg() (Money, error) {
+	if m.minorUnits == math.MinInt64 {
+		return Money{}, ErrMoneyOverflow
+	}
+	return Money{minorUnits: -m.minorUnits, currency: m.currency}, nil
+}
+
+func (m Money) Cmp(other Money) (int, error) {
+	if err := m.assertSameCurrency(other); err != nil {
+		return 0, err
+	}
+
+	switch {
+	case m.minorUnits < other.minorUnits:
+		return -1, nil
+	case m.minorUnits > other.minorUnits:
+		return 1, nil
+	default:
+		return 0, nil
+	}
+}
+
+func (m Money) Equal(other Money) bool {
+	return m.minorUnits == other.minorUnits && m.currency == other.currency
+}
+
+type moneyDTO struct {
+	Amount   string `json:"amount"`
+	Currency string `json:"currency"`
+}
+
+func (m Money) MarshalJSON() ([]byte, error) {
+	if !m.IsInitialized() {
+		return nil, ErrUninitializedMoney
+	}
+	return json.Marshal(moneyDTO{Amount: m.String(), Currency: m.currency})
+}
+
+func (m *Money) UnmarshalJSON(data []byte) error {
+	var dto moneyDTO
+	if err := json.Unmarshal(data, &dto); err != nil {
+		return ErrInvalidMoneyFormat
+	}
+
+	parsed, err := ParseMoney(dto.Amount, dto.Currency)
+	if err != nil {
+		return err
+	}
+
+	*m = parsed
+	return nil
 }
